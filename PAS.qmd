@@ -1,0 +1,116 @@
+---
+subtitle: "Plan d'Analyse Statistique V0.2"
+
+---
+
+
+
+:::{.panel-tabset}
+
+# Généralités
+
+```{r filename = "setup"}
+#| label: setup
+
+rm(list = ls())
+#
+library(baseph)
+library(gtsummary)
+library(kableExtra)
+library(janitor)
+library(labelled)
+library(epiDisplay)
+library(visdat)
+library(corrplot)
+library(biostats)
+library(readODS)
+library("colorspace")
+library("apyramid")
+library("FactoMineR")
+library("factoextra")
+library("missMDA")
+library("readODS")
+library("ggsci")
+library("ggstats")
+library("plotly")
+library(tidyverse)
+#
+#load("datas/keeppmr.RData")
+expx <- FALSE
+classeur <- "keeppmr1.ods"
+#
+theme_gtsummary_language(language = "fr", decimal.mark = ",")
+options(OutDec = ",")
+#
+ptest <- list(all_continuous() ~ "t.test", all_categorical() ~ "chisq.test")
+stt <- list(
+  all_continuous() ~ "{mean} ± {sd}",
+  all_categorical() ~ "{n}/{N} ({p}%)"
+)
+```
+
+
+Sauf indication contraire les données numériques seront présentées par leur moyenne & écart-type si les conditions de normalité sont remplies, sinon présentées par leur médiane avec les quartiles. Les données catégorielles seront présentées par par le nombre & le pourcentage avec son intervalle de confiance à \perc{95} calculé par bootstrap. Les proportions de données manquantes seront calculées. Les données quantitatives seront comparées à l'aide de tests t de Student ou {\textsc{anova} ou de tests non paramétriques (Wilcoxon-Mann-Withney) lorsque la distribution reste asymétrique même après transformation appropriée (échelle des puissances de Tukey). Les données qualitatives seront comparées au moyen de tests du $\chi^2$ ou de tests exacts de Fisher. Les caractéristiques initiales des sujets seront décrites. Des graphiques pourront être réalisés pour les variables ou tests importants.
+
+Le risque $\alpha$ retenu sera de \num{0.05} & la \gls{puissance} de \num{0.8}.
+
+Toutes les analyses seront faites sur quatre groupes : 
+ 
+- PPR isolée
+- PPR + ACG
+- ACG isolée
+- Absence de diagnostic final de PPR ou d’ACG
+
+L'analyse statistique sera réalisée avec le logiciel **R**[@rstat] & divers packages. Outre ceux cités dans le texte ou utilisera en particulier `tidyverse` [@tidy] & `baseph` [@baseph].
+
+Un dépôt GitHub sera utilisé qui ne comprendra que le code & non les données ou résultats. Au besoin un faux tableau de données sera présenté pour permettre des tests.
+
+<https://https://github.com/philippemichel/KEEP-PMR>
+
+# Nombre de cas
+
+```{r}
+#| label: nb-cas
+
+nn <- nb.obs.ph(px = 0.5, ex = 0.1, np = 1e+05)
+nn <- floor(nn*1.1)+1
+```
+
+
+
+Il s'agit d'une étude purement descriptive sans test central et donc pas de calcul précis du nombre de cas nécessaires. On peut néanmoins avancer un chiffre en gardant un pourcentage de cas positif à \perc{50} (hypothèse la plus défavorable en l'absence d'estimation) dans une grande population (prévalence autour de \perc{2}) avec une marge d'erreur considérée comme acceptable sur les pourcentages obtenus de \perc{10} , on obtient un échantillon minimal de **`r nn` cas**.
+
+# Qualité de l'échantillon
+
+## Données manquantes
+
+Le décompte des données manquantes sera réalisé & présenté par un tableau ou un graphique. Les lecteurs ayant trop de données manquantes ou non utilisables (\> \perc{20}) ne seront pas pris en compte après validation par le promoteur. Sinon les données manquantes seront imputées (\glspl{imput} multiples, \num{150} itérations au maximum --- package `missMDA`[@missmda]) si considérées comme manquant de manière complètement aléatoire (`MCAR`) ou manquant de manière aléatoire (`MAR`).
+
+## Qualité des données
+
+Une analyse de corrélation (package `corr` [@corr]) entre les variables sera réalisée & présentée sur un graphique de corrélation. Si certaines variables se montrent anormalement corrélées elles devront être exclues de l'étude après accord du promoteur.
+
+## Description de  l'échantillon
+
+Plusieurs tableaux présenteront l'échantillon : données démographiques, antécédents, évolution de la maladie, tableau clinique & biologique\dots
+
+# Critère principal
+
+Les pourcentages  de tests positifs avec leur intervalle de confiance (hyper métabolisme - Score supérieur ou égal à 2/3) seront donnés pour l'ensemble des mesures puis par compartiment anatomique & par structure anatomique.
+
+De même les pourcentages (avec leur IC) selon leur diagnostic seront présentés. Une comparaison entre les patients PPR seule ou PPR/ACG sera réalisée (test exact de Fisher). 
+
+# Critères secondaires
+
+De la mêm manière les pourcentage (avec leur IC) seront présentés pour plusieurs catégories de patients selon le diagnostic : 
+
+- patients avec PPR isolée au diagnostic
+- patients avec PPR + ACG au diagnostic
+- patients avec ACG isolée au diagnostic
+- patients présentant une PPR ou une ACG en rechute
+- patients dont le diagnostic de PPR ou d’ACG a été infirmé après 6 mois de suivi clinique.
+
+
+\printglossaries
+
+# Bibliographie {.unnumbered}
