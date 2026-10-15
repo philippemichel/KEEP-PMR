@@ -1,0 +1,136 @@
+---
+title: "KEEP-PMR : hypermétabolisme des genoux"
+lang: fr
+format:
+  html:
+    toc: true
+    embed-resources: true
+execute:
+  echo: false
+  warning: false
+---
+
+```{r}
+#| label: setup
+library(tidyverse)
+library(gtsummary)
+library(ggplot2)
+theme_gtsummary_language("fr", decimal.mark = ",", big.mark = " ")
+```
+
+## Données
+
+Le fichier `data/keep.csv` est attendu avec une ligne par patient et les colonnes suivantes :
+
+- `ppr` : PPR au diagnostic final (oui/non, 1/0)
+- `acg` : ACG au diagnostic final (oui/non, 1/0)
+- `situation` : `diagnostic` (diagnostic initial), `rechute`, ou `infirme` (diagnostic de PPR/ACG infirmé après 6 mois de suivi clinique par le clinicien référent)
+- `score_genou` : score d'hypermétabolisme des genoux (0 à 3) ; si le score est relevé par genou, fournir le maximum des deux genoux
+
+```{r}
+#| label: donnees
+yes <- function(x) tolower(as.character(x)) %in% c("1", "oui", "yes", "true", "vrai")
+
+keep <- read_csv("data/keep.csv", show_col_types = FALSE) |>
+  mutate(
+    ppr = yes(ppr),
+    acg = yes(acg),
+    groupe = case_when(
+      ppr & !acg ~ "PPR isolée",
+      ppr & acg ~ "PPR + ACG",
+      !ppr & acg ~ "ACG isolée",
+      TRUE ~ "Absence de diagnostic final de PPR ou d'ACG"
+    ) |>
+      factor(levels = c(
+        "PPR isolée", "PPR + ACG", "ACG isolée",
+        "Absence de diagnostic final de PPR ou d'ACG"
+      )),
+    situation = factor(
+      tolower(situation),
+      levels = c("diagnostic", "rechute", "infirme"),
+      labels = c("Au diagnostic", "En rechute", "Diagnostic infirmé à 6 mois")
+    ),
+    score_genou = as.integer(score_genou),
+    hyper_marque = score_genou >= 2
+  )
+```
+
+## Répartition en 4 groupes d'analyse
+
+```{r}
+#| label: groupes
+keep |>
+  select(groupe) |>
+  tbl_summary(label = list(groupe ~ "Groupe d'analyse"))
+```
+
+## Hypermétabolisme marqué des genoux (score ≥ 2/3) chez les patients PPR/ACG
+
+```{r}
+#| label: global
+keep_pa <- keep |> filter(ppr | acg)
+
+keep_pa |>
+  select(hyper_marque) |>
+  tbl_summary(
+    label = list(hyper_marque ~ "Hypermétabolisme marqué des genoux (score ≥ 2)"),
+    statistic = all_categorical() ~ "{n} ({p}%)"
+  ) |>
+  add_ci()
+```
+
+## Hypermétabolisme significatif des genoux selon la situation
+
+```{r}
+#| label: situations
+tab_sit <- keep |>
+  mutate(
+    sous_groupe = case_when(
+      situation == "Au diagnostic" & groupe == "PPR isolée" ~ "PPR isolée au diagnostic",
+      situation == "Au diagnostic" & groupe == "PPR + ACG" ~ "PPR + ACG au diagnostic",
+      situation == "Au diagnostic" & groupe == "ACG isolée" ~ "ACG isolée au diagnostic",
+      situation == "En rechute" & (ppr | acg) ~ "PPR ou ACG en rechute",
+      situation == "Diagnostic infirmé à 6 mois" ~ "Diagnostic infirmé après 6 mois de suivi"
+    ) |>
+      factor(levels = c(
+        "PPR isolée au diagnostic", "PPR + ACG au diagnostic",
+        "ACG isolée au diagnostic", "PPR ou ACG en rechute",
+        "Diagnostic infirmé après 6 mois de suivi"
+      ))
+  ) |>
+  filter(!is.na(sous_groupe))
+
+tab_sit |>
+  select(sous_groupe, hyper_marque) |>
+  tbl_summary(
+    by = sous_groupe,
+    label = list(hyper_marque ~ "Hypermétabolisme significatif des genoux (score ≥ 2)"),
+    statistic = all_categorical() ~ "{n} ({p}%)"
+  ) |>
+  add_overall() |>
+  add_ci()
+```
+
+```{r}
+#| label: fig-pct
+#| fig-cap: "Pourcentage de patients avec hypermétabolisme significatif des genoux (IC95 % de Wilson)"
+res <- tab_sit |>
+  group_by(sous_groupe) |>
+  summarise(n = n(), x = sum(hyper_marque, na.rm = TRUE), .groups = "drop") |>
+  rowwise() |>
+  mutate(
+    pct = 100 * x / n,
+    low = 100 * prop.test(x, n)$conf.int[1],
+    high = 100 * prop.test(x, n)$conf.int[2]
+  ) |>
+  ungroup()
+
+ggplot(res, aes(x = sous_groupe, y = pct)) +
+  geom_col(fill = "steelblue") +
+  geom_errorbar(aes(ymin = low, ymax = high), width = 0.2) +
+  geom_text(aes(label = paste0(x, "/", n)), vjust = -0.5, nudge_y = 3) +
+  scale_x_discrete(labels = scales::label_wrap(18)) +
+  coord_cartesian(ylim = c(0, 100)) +
+  labs(x = NULL, y = "% de patients (score ≥ 2)") +
+  theme_minimal()
+```
